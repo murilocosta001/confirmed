@@ -103,7 +103,7 @@ const Register = () => {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Crie sua conta</CardTitle>
           <CardDescription>
-            Comece a reduzir faltas em sua clínica hoje mesmo
+            Teste grátis por 7 dias, depois R$ 47/mês
           </CardDescription>
         </CardHeader>
         <CardContent>

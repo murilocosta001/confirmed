@@ -8,6 +8,7 @@ interface SubscriptionData {
   subscription_end: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  trial_days_remaining: number;
 }
 
 export const useSubscription = () => {
@@ -27,7 +28,8 @@ export const useSubscription = () => {
           status: "trialing",
           subscription_end: null,
           stripe_customer_id: null,
-          stripe_subscription_id: null
+          stripe_subscription_id: null,
+          trial_days_remaining: 7
         };
       }
       
@@ -45,12 +47,16 @@ export const useSubscription = () => {
   const isActive = query.data?.status === "active" || query.data?.status === "trialing";
   const isPastDue = query.data?.status === "past_due";
   const isCancelled = query.data?.status === "cancelled";
+  const isTrialing = query.data?.status === "trialing";
+  const trialDaysRemaining = query.data?.trial_days_remaining ?? 0;
 
   return {
     ...query,
     isActive,
     isPastDue,
     isCancelled,
+    isTrialing,
+    trialDaysRemaining,
     refreshSubscription,
   };
 };

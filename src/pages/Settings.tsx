@@ -15,7 +15,7 @@ import { ptBR } from "date-fns/locale";
 
 const Settings = () => {
   const { data: clinic, isLoading } = useClinic();
-  const { data: subscription, isActive, isPastDue, isCancelled, refreshSubscription } = useSubscription();
+  const { data: subscription, isActive, isPastDue, isCancelled, isTrialing, trialDaysRemaining, refreshSubscription } = useSubscription();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -168,14 +168,15 @@ const Settings = () => {
     }
 
     if (subscription.status === "trialing") {
+      const daysText = trialDaysRemaining === 1 ? "1 dia restante" : `${trialDaysRemaining} dias restantes`;
       return (
-        <div className="rounded-lg bg-success/10 border border-success/20 p-4">
+        <div className="rounded-lg bg-warning/10 border border-warning/20 p-4">
           <div className="flex items-center gap-3">
-            <div className="h-3 w-3 rounded-full bg-success animate-pulse" />
+            <div className="h-3 w-3 rounded-full bg-warning animate-pulse" />
             <div>
-              <p className="font-medium text-foreground">Período de Teste Ativo</p>
+              <p className="font-medium text-foreground">Período de Teste Gratuito</p>
               <p className="text-sm text-muted-foreground">
-                Você está no período de teste gratuito de 7 dias.
+                {daysText} do seu teste gratuito. Assine agora para continuar usando após o período de teste.
               </p>
             </div>
           </div>
