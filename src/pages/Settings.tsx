@@ -5,13 +5,17 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useClinic } from "@/hooks/useClinic";
+import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, CreditCard, ExternalLink, AlertTriangle, CheckCircle } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const Settings = () => {
   const { data: clinic, isLoading } = useClinic();
+  const { data: subscription, isActive, isPastDue, isCancelled, refreshSubscription } = useSubscription();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -21,6 +25,8 @@ const Settings = () => {
   const [closingTime, setClosingTime] = useState("");
   const [deadlineHours, setDeadlineHours] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
+  const [loadingPortal, setLoadingPortal] = useState(false);
 
   useEffect(() => {
     if (clinic) {
@@ -31,6 +37,26 @@ const Settings = () => {
       setDeadlineHours(clinic.confirmation_deadline_hours.toString());
     }
   }, [clinic]);
+
+  // Check for checkout success/cancel in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") {
+      toast({
+        title: "Assinatura ativada!",
+        description: "Bem-vindo ao Confirmed Profissional.",
+      });
+      refreshSubscription();
+      window.history.replaceState({}, "", "/configuracoes");
+    } else if (params.get("checkout") === "cancelled") {
+      toast({
+        variant: "destructive",
+        title: "Checkout cancelado",
+        description: "Você pode tentar novamente quando quiser.",
+      });
+      window.history.replaceState({}, "", "/configuracoes");
+    }
+  }, []);
 
   const formatWhatsapp = (value: string) => {
     const digits = value.replace(/\D/g, "");
@@ -74,6 +100,119 @@ const Settings = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCheckout = async () => {
+    setLoadingCheckout(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-checkout");
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.open(data.url, "_blank");
+      }
+    } catch (error) {
+      console.error("Checkout error:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao iniciar checkout",
+        description: "Não foi possível iniciar o processo de pagamento.",
+      });
+    } finally {
+      setLoadingCheckout(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setLoadingPortal(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("customer-portal");
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.open(data.url, "_blank");
+      }
+    } catch (error) {
+      console.error("Portal error:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao abrir portal",
+        description: "Não foi possível abrir o portal de gerenciamento.",
+      });
+    } finally {
+      setLoadingPortal(false);
+    }
+  };
+
+  const getSubscriptionStatusDisplay = () => {
+    if (!subscription) return null;
+
+    if (subscription.status === "active") {
+      return (
+        <div className="rounded-lg bg-success/10 border border-success/20 p-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-success" />
+            <div>
+              <p className="font-medium text-foreground">Assinatura Ativa</p>
+              {subscription.subscription_end && (
+                <p className="text-sm text-muted-foreground">
+                  Próxima renovação: {format(new Date(subscription.subscription_end), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (subscription.status === "trialing") {
+      return (
+        <div className="rounded-lg bg-success/10 border border-success/20 p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-3 w-3 rounded-full bg-success animate-pulse" />
+            <div>
+              <p className="font-medium text-foreground">Período de Teste Ativo</p>
+              <p className="text-sm text-muted-foreground">
+                Você está no período de teste gratuito de 7 dias.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (subscription.status === "past_due") {
+      return (
+        <div className="rounded-lg bg-warning/10 border border-warning/20 p-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-warning" />
+            <div>
+              <p className="font-medium text-foreground">Pagamento Pendente</p>
+              <p className="text-sm text-muted-foreground">
+                Há um problema com seu pagamento. Atualize seus dados para continuar.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Cancelled
+    return (
+      <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <div>
+            <p className="font-medium text-foreground">Assinatura Cancelada</p>
+            <p className="text-sm text-muted-foreground">
+              Sua assinatura foi cancelada. Os envios de WhatsApp estão bloqueados.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (isLoading) {
@@ -191,28 +330,57 @@ const Settings = () => {
           {/* Subscription Info */}
           <Card className="shadow-card">
             <CardHeader>
-              <CardTitle>Assinatura</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Assinatura
+              </CardTitle>
               <CardDescription>
-                Informações sobre seu plano
+                Gerencie seu plano e pagamentos
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-lg bg-success/10 border border-success/20 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-3 w-3 rounded-full bg-success animate-pulse" />
-                  <div>
-                    <p className="font-medium text-foreground">
-                      Período de Teste Ativo
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Você está no período de teste gratuito de 7 dias.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <Button className="mt-4 w-full gradient-primary font-medium shadow-md hover:opacity-90 transition-opacity">
-                Assinar Plano Profissional - R$ 47/mês
-              </Button>
+            <CardContent className="space-y-4">
+              {getSubscriptionStatusDisplay()}
+              
+              {(!subscription || subscription.status === "trialing" || subscription.status === "cancelled") && (
+                <Button 
+                  onClick={handleCheckout}
+                  disabled={loadingCheckout}
+                  className="w-full gradient-primary font-medium shadow-md hover:opacity-90 transition-opacity"
+                >
+                  {loadingCheckout ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Assinar Plano Profissional - R$ 47/mês
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {subscription?.stripe_customer_id && (
+                <Button 
+                  onClick={handleManageSubscription}
+                  disabled={loadingPortal}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {loadingPortal ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Abrindo portal...
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Gerenciar Assinatura
+                    </>
+                  )}
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
