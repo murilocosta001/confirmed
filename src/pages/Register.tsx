@@ -81,7 +81,7 @@ const Register = () => {
         description: "Bem-vindo ao Confirmed.",
       });
 
-      navigate("/dashboard");
+      navigate("/onboarding");
     } catch (error) {
       toast({
         variant: "destructive",
