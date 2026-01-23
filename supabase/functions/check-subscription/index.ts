@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -26,9 +25,6 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header provided");
 
@@ -36,10 +32,10 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError) throw new Error(`Authentication error: ${userError.message}`);
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    if (!user?.id) throw new Error("User not authenticated");
+    logStep("User authenticated", { userId: user.id });
 
-    // First, check local subscription in database
+    // Find user's clinic
     const { data: clinicData, error: clinicError } = await supabaseClient
       .from("clinics")
       .select("id")
@@ -48,112 +44,17 @@ serve(async (req) => {
 
     if (clinicError) {
       logStep("Error fetching clinic", { error: clinicError.message });
+      throw new Error("Error fetching clinic data");
     }
 
-    if (clinicData) {
-      const { data: localSub, error: subError } = await supabaseClient
-        .from("subscriptions")
-        .select("*")
-        .eq("clinic_id", clinicData.id)
-        .maybeSingle();
-
-      if (subError) {
-        logStep("Error fetching local subscription", { error: subError.message });
-      }
-
-      if (localSub) {
-        logStep("Found local subscription", { 
-          status: localSub.status, 
-          periodEnd: localSub.current_period_end,
-          stripeCustomerId: localSub.stripe_customer_id
-        });
-
-        // If it's a local trial (no Stripe subscription yet), check if expired
-        if (localSub.status === "trialing" && !localSub.stripe_subscription_id) {
-          const trialEnd = new Date(localSub.current_period_end);
-          const now = new Date();
-          
-          if (now > trialEnd) {
-            logStep("Local trial has expired");
-            // Update status to cancelled
-            await supabaseClient
-              .from("subscriptions")
-              .update({ status: "cancelled" })
-              .eq("id", localSub.id);
-
-            return new Response(JSON.stringify({
-              subscribed: false,
-              status: "cancelled",
-              subscription_end: localSub.current_period_end,
-              stripe_customer_id: localSub.stripe_customer_id,
-              stripe_subscription_id: null,
-              trial_days_remaining: 0
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            });
-          }
-
-          // Trial still active
-          const daysRemaining = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          logStep("Local trial still active", { daysRemaining });
-          
-          return new Response(JSON.stringify({
-            subscribed: true,
-            status: "trialing",
-            subscription_end: localSub.current_period_end,
-            stripe_customer_id: localSub.stripe_customer_id,
-            stripe_subscription_id: null,
-            trial_days_remaining: daysRemaining
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 200,
-          });
-        }
-      }
-    }
-
-    // Check Stripe for active subscriptions
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-
-    if (customers.data.length === 0) {
-      logStep("No Stripe customer found, checking local subscription");
-      
-      // If no Stripe customer but we have a local subscription, it might be a fresh trial
-      if (clinicData) {
-        const { data: localSub } = await supabaseClient
-          .from("subscriptions")
-          .select("*")
-          .eq("clinic_id", clinicData.id)
-          .maybeSingle();
-
-        if (localSub && localSub.status === "trialing") {
-          const trialEnd = new Date(localSub.current_period_end);
-          const now = new Date();
-          const daysRemaining = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-          if (daysRemaining > 0) {
-            return new Response(JSON.stringify({
-              subscribed: true,
-              status: "trialing",
-              subscription_end: localSub.current_period_end,
-              stripe_customer_id: null,
-              stripe_subscription_id: null,
-              trial_days_remaining: daysRemaining
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            });
-          }
-        }
-      }
-
-      return new Response(JSON.stringify({ 
+    if (!clinicData) {
+      logStep("No clinic found for user");
+      return new Response(JSON.stringify({
         subscribed: false,
         status: "cancelled",
         subscription_end: null,
         stripe_customer_id: null,
+        stripe_subscription_id: null,
         trial_days_remaining: 0
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -161,115 +62,70 @@ serve(async (req) => {
       });
     }
 
-    const customerId = customers.data[0].id;
-    logStep("Found Stripe customer", { customerId });
+    // READ-ONLY: Just fetch the subscription status from database
+    // All updates are handled exclusively by stripe-webhook
+    const { data: subscription, error: subError } = await supabaseClient
+      .from("subscriptions")
+      .select("*")
+      .eq("clinic_id", clinicData.id)
+      .maybeSingle();
 
-    // Check for active subscriptions
-    const activeSubscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "active",
-      limit: 1,
+    if (subError) {
+      logStep("Error fetching subscription", { error: subError.message });
+      throw new Error("Error fetching subscription data");
+    }
+
+    if (!subscription) {
+      logStep("No subscription found for clinic");
+      return new Response(JSON.stringify({
+        subscribed: false,
+        status: "cancelled",
+        subscription_end: null,
+        stripe_customer_id: null,
+        stripe_subscription_id: null,
+        trial_days_remaining: 0
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    logStep("Subscription found", { 
+      status: subscription.status, 
+      periodEnd: subscription.current_period_end,
+      stripeCustomerId: subscription.stripe_customer_id,
+      stripeSubscriptionId: subscription.stripe_subscription_id
     });
 
-    // Also check for trialing subscriptions
-    const trialingSubscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "trialing",
-      limit: 1,
-    });
+    // Calculate trial days remaining for local trials
+    let trialDaysRemaining = 0;
+    let effectiveStatus = subscription.status;
 
-    // Check for past_due subscriptions
-    const pastDueSubscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "past_due",
-      limit: 1,
-    });
-
-    let status: "active" | "trialing" | "past_due" | "cancelled" = "cancelled";
-    let subscriptionEnd = null;
-    let stripeSubscriptionId = null;
-
-    if (activeSubscriptions.data.length > 0) {
-      const subscription = activeSubscriptions.data[0];
-      status = "active";
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      stripeSubscriptionId = subscription.id;
-      logStep("Active subscription found", { subscriptionId: subscription.id });
+    if (subscription.status === "trialing" && !subscription.stripe_subscription_id) {
+      // Local trial - check if expired
+      const trialEnd = new Date(subscription.current_period_end);
+      const now = new Date();
       
-      // Update local subscription
-      if (clinicData) {
-        await supabaseClient
-          .from("subscriptions")
-          .update({
-            status: "active",
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subscription.id,
-            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-            current_period_end: subscriptionEnd
-          })
-          .eq("clinic_id", clinicData.id);
-      }
-    } else if (trialingSubscriptions.data.length > 0) {
-      const subscription = trialingSubscriptions.data[0];
-      status = "trialing";
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      stripeSubscriptionId = subscription.id;
-      logStep("Trialing subscription found", { subscriptionId: subscription.id });
-      
-      // Update local subscription
-      if (clinicData) {
-        await supabaseClient
-          .from("subscriptions")
-          .update({
-            status: "trialing",
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subscription.id,
-            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-            current_period_end: subscriptionEnd
-          })
-          .eq("clinic_id", clinicData.id);
-      }
-    } else if (pastDueSubscriptions.data.length > 0) {
-      const subscription = pastDueSubscriptions.data[0];
-      status = "past_due";
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      stripeSubscriptionId = subscription.id;
-      logStep("Past due subscription found", { subscriptionId: subscription.id });
-      
-      // Update local subscription
-      if (clinicData) {
-        await supabaseClient
-          .from("subscriptions")
-          .update({
-            status: "past_due",
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subscription.id,
-            current_period_end: subscriptionEnd
-          })
-          .eq("clinic_id", clinicData.id);
-      }
-    } else {
-      logStep("No active Stripe subscription found");
-      
-      // Update local subscription to cancelled if there's no active Stripe subscription
-      if (clinicData) {
-        await supabaseClient
-          .from("subscriptions")
-          .update({
-            status: "cancelled",
-            stripe_customer_id: customerId
-          })
-          .eq("clinic_id", clinicData.id);
+      if (now > trialEnd) {
+        // Trial has expired - but we don't update here, webhook or scheduled job should handle this
+        effectiveStatus = "cancelled";
+        trialDaysRemaining = 0;
+        logStep("Local trial has expired");
+      } else {
+        trialDaysRemaining = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        logStep("Local trial active", { daysRemaining: trialDaysRemaining });
       }
     }
 
+    const isSubscribed = effectiveStatus === "active" || effectiveStatus === "trialing";
+
     return new Response(JSON.stringify({
-      subscribed: status === "active" || status === "trialing",
-      status,
-      subscription_end: subscriptionEnd,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: stripeSubscriptionId,
-      trial_days_remaining: 0
+      subscribed: isSubscribed,
+      status: effectiveStatus,
+      subscription_end: subscription.current_period_end,
+      stripe_customer_id: subscription.stripe_customer_id,
+      stripe_subscription_id: subscription.stripe_subscription_id,
+      trial_days_remaining: trialDaysRemaining
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
