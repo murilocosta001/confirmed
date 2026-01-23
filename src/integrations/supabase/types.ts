@@ -72,34 +72,46 @@ export type Database = {
       }
       clinics: {
         Row: {
+          clinic_type: string | null
+          clinic_type_other: string | null
           closing_time: string
           confirmation_deadline_hours: number
           created_at: string
           id: string
+          monthly_appointments: string | null
           name: string
           opening_time: string
+          professionals_count: string | null
           updated_at: string
           user_id: string
           whatsapp: string
         }
         Insert: {
+          clinic_type?: string | null
+          clinic_type_other?: string | null
           closing_time?: string
           confirmation_deadline_hours?: number
           created_at?: string
           id?: string
+          monthly_appointments?: string | null
           name: string
           opening_time?: string
+          professionals_count?: string | null
           updated_at?: string
           user_id: string
           whatsapp: string
         }
         Update: {
+          clinic_type?: string | null
+          clinic_type_other?: string | null
           closing_time?: string
           confirmation_deadline_hours?: number
           created_at?: string
           id?: string
+          monthly_appointments?: string | null
           name?: string
           opening_time?: string
+          professionals_count?: string | null
           updated_at?: string
           user_id?: string
           whatsapp?: string
