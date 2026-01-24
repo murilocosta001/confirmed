@@ -8,6 +8,8 @@ import {
   LayoutDashboard,
   Calendar,
   MessageSquare,
+  Users,
+  BarChart3,
   Settings,
   LogOut,
   Loader2,
@@ -16,6 +18,8 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
   { href: "/consultas", label: "Consultas", icon: Calendar },
+  { href: "/pacientes", label: "Pacientes", icon: Users },
+  { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/mensagens", label: "Mensagens", icon: MessageSquare },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
