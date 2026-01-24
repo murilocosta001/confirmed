@@ -23,6 +23,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string
           id: string
+          patient_id: string | null
           patient_name: string
           patient_whatsapp: string
           reminder_24h_sent: boolean
@@ -38,6 +39,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           id?: string
+          patient_id?: string | null
           patient_name: string
           patient_whatsapp: string
           reminder_24h_sent?: boolean
@@ -53,6 +55,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           id?: string
+          patient_id?: string | null
           patient_name?: string
           patient_whatsapp?: string
           reminder_24h_sent?: boolean
@@ -66,6 +69,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]
@@ -146,6 +156,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "message_templates_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patients: {
+        Row: {
+          birth_date: string | null
+          clinic_id: string
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          updated_at: string
+          whatsapp: string
+        }
+        Insert: {
+          birth_date?: string | null
+          clinic_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          updated_at?: string
+          whatsapp: string
+        }
+        Update: {
+          birth_date?: string | null
+          clinic_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patients_clinic_id_fkey"
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"

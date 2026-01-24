@@ -12,6 +12,8 @@ import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Appointments from "./pages/Appointments";
 import Messages from "./pages/Messages";
+import Patients from "./pages/Patients";
+import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -43,9 +45,14 @@ const App = () => (
                 <Appointments />
               </ProtectedRoute>
             } />
-            <Route path="/mensagens" element={
+            <Route path="/pacientes" element={
               <ProtectedRoute>
-                <Messages />
+                <Patients />
+              </ProtectedRoute>
+            } />
+            <Route path="/relatorios" element={
+              <ProtectedRoute>
+                <Reports />
               </ProtectedRoute>
             } />
             <Route path="/configuracoes" element={
