@@ -23,7 +23,7 @@ const Hero = () => {
 
           <h1 className="animate-fade-up text-balance text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl lg:text-6xl" style={{ animationDelay: "0.1s" }}>
             Confirmação de consultas{" "}
-            <span className="gradient-primary bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
               automatizada
             </span>{" "}
             via WhatsApp
