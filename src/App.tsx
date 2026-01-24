@@ -11,6 +11,7 @@ import Register from "./pages/Register";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Appointments from "./pages/Appointments";
+import Messages from "./pages/Messages";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -40,6 +41,11 @@ const App = () => (
             <Route path="/consultas" element={
               <ProtectedRoute>
                 <Appointments />
+              </ProtectedRoute>
+            } />
+            <Route path="/mensagens" element={
+              <ProtectedRoute>
+                <Messages />
               </ProtectedRoute>
             } />
             <Route path="/configuracoes" element={

@@ -7,6 +7,7 @@ import { useClinic } from "@/hooks/useClinic";
 import {
   LayoutDashboard,
   Calendar,
+  MessageSquare,
   Settings,
   LogOut,
   Loader2,
@@ -15,6 +16,7 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
   { href: "/consultas", label: "Consultas", icon: Calendar },
+  { href: "/mensagens", label: "Mensagens", icon: MessageSquare },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
