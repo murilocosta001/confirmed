@@ -118,6 +118,41 @@ export type Database = {
         }
         Relationships: []
       }
+      message_templates: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          message_content: string
+          template_type: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          message_content: string
+          template_type: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          message_content?: string
+          template_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           clinic_id: string
