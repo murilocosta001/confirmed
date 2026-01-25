@@ -50,6 +50,11 @@ const App = () => (
                 <Patients />
               </ProtectedRoute>
             } />
+            <Route path="/mensagens" element={
+              <ProtectedRoute>
+                <Messages />
+              </ProtectedRoute>
+            } />
             <Route path="/relatorios" element={
               <ProtectedRoute>
                 <Reports />
