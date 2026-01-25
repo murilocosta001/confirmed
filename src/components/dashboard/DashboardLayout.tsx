@@ -46,7 +46,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center border-b border-sidebar-border px-6">
-            <Logo className="[&_span]:text-sidebar-foreground [&_div]:bg-sidebar-accent" />
+            <Logo variant="light" />
           </div>
 
           {/* Navigation */}
