@@ -52,9 +52,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         subscribed: false,
         status: "cancelled",
+        plan_name: "Nenhum",
         subscription_end: null,
-        stripe_customer_id: null,
-        stripe_subscription_id: null,
         trial_days_remaining: 0
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -80,9 +79,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         subscribed: false,
         status: "cancelled",
+        plan_name: "Nenhum",
         subscription_end: null,
-        stripe_customer_id: null,
-        stripe_subscription_id: null,
         trial_days_remaining: 0
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -92,9 +90,7 @@ serve(async (req) => {
 
     logStep("Subscription found", { 
       status: subscription.status, 
-      periodEnd: subscription.current_period_end,
-      stripeCustomerId: subscription.stripe_customer_id,
-      stripeSubscriptionId: subscription.stripe_subscription_id
+      periodEnd: subscription.current_period_end
     });
 
     // Calculate trial days remaining for local trials
@@ -118,13 +114,22 @@ serve(async (req) => {
     }
 
     const isSubscribed = effectiveStatus === "active" || effectiveStatus === "trialing";
+    
+    // Determine plan name based on status (no sensitive IDs exposed)
+    let planName = "Nenhum";
+    if (effectiveStatus === "active") {
+      planName = "Plano Profissional";
+    } else if (effectiveStatus === "trialing") {
+      planName = "Trial";
+    } else if (effectiveStatus === "past_due") {
+      planName = "Pagamento Pendente";
+    }
 
     return new Response(JSON.stringify({
       subscribed: isSubscribed,
       status: effectiveStatus,
+      plan_name: planName,
       subscription_end: subscription.current_period_end,
-      stripe_customer_id: subscription.stripe_customer_id,
-      stripe_subscription_id: subscription.stripe_subscription_id,
       trial_days_remaining: trialDaysRemaining
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
