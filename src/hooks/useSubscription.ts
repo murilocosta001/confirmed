@@ -5,9 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 interface SubscriptionData {
   subscribed: boolean;
   status: "active" | "trialing" | "past_due" | "cancelled";
+  plan_name: string;
   subscription_end: string | null;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
   trial_days_remaining: number;
 }
 
@@ -26,9 +25,8 @@ export const useSubscription = () => {
         return {
           subscribed: true,
           status: "trialing",
+          plan_name: "Trial",
           subscription_end: null,
-          stripe_customer_id: null,
-          stripe_subscription_id: null,
           trial_days_remaining: 7
         };
       }

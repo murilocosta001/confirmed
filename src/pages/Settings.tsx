@@ -362,7 +362,7 @@ const Settings = () => {
                 </Button>
               )}
 
-              {subscription?.stripe_customer_id && (
+              {(isActive || isPastDue) && (
                 <Button 
                   onClick={handleManageSubscription}
                   disabled={loadingPortal}
