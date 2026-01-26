@@ -11,31 +11,73 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
+// FAIL-CLOSED: Resposta padrão de acesso negado
+const DENIED_RESPONSE = {
+  subscribed: false,
+  status: "error",
+  plan_name: "Acesso Negado",
+  subscription_end: null,
+  trial_days_remaining: 0
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
-  );
-
+  // FAIL-CLOSED: Qualquer erro retorna acesso negado
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    // Validar configuração do ambiente
+    if (!supabaseUrl || !supabaseServiceKey) {
+      logStep("CRITICAL: Missing environment variables");
+      return new Response(JSON.stringify(DENIED_RESPONSE), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, // Retornar 200 para o frontend processar
+      });
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false }
+    });
+
     logStep("Function started");
 
+    // Validar cabeçalho de autorização
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      logStep("No valid authorization header provided");
+      return new Response(JSON.stringify(DENIED_RESPONSE), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
 
     const token = authHeader.replace("Bearer ", "");
+    if (!token || token.length < 10) {
+      logStep("Invalid token format");
+      return new Response(JSON.stringify(DENIED_RESPONSE), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    // Autenticar usuário
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    if (userError || !userData?.user?.id) {
+      logStep("Authentication failed", { error: userError?.message });
+      return new Response(JSON.stringify(DENIED_RESPONSE), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     const user = userData.user;
-    if (!user?.id) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
-    // Find user's clinic
+    // Buscar clínica do usuário
     const { data: clinicData, error: clinicError } = await supabaseClient
       .from("clinics")
       .select("id")
@@ -44,7 +86,10 @@ serve(async (req) => {
 
     if (clinicError) {
       logStep("Error fetching clinic", { error: clinicError.message });
-      throw new Error("Error fetching clinic data");
+      return new Response(JSON.stringify(DENIED_RESPONSE), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     if (!clinicData) {
@@ -61,17 +106,19 @@ serve(async (req) => {
       });
     }
 
-    // READ-ONLY: Just fetch the subscription status from database
-    // All updates are handled exclusively by stripe-webhook
+    // Buscar assinatura - READ-ONLY
     const { data: subscription, error: subError } = await supabaseClient
       .from("subscriptions")
-      .select("*")
+      .select("status, current_period_end, stripe_subscription_id")
       .eq("clinic_id", clinicData.id)
       .maybeSingle();
 
     if (subError) {
       logStep("Error fetching subscription", { error: subError.message });
-      throw new Error("Error fetching subscription data");
+      return new Response(JSON.stringify(DENIED_RESPONSE), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     if (!subscription) {
@@ -88,22 +135,38 @@ serve(async (req) => {
       });
     }
 
+    // Validar status da assinatura
+    const validStatuses = ["active", "trialing", "past_due", "cancelled"];
+    if (!validStatuses.includes(subscription.status)) {
+      logStep("Invalid subscription status", { status: subscription.status });
+      return new Response(JSON.stringify(DENIED_RESPONSE), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     logStep("Subscription found", { 
       status: subscription.status, 
       periodEnd: subscription.current_period_end
     });
 
-    // Calculate trial days remaining for local trials
+    // Calcular dias restantes de trial para trials locais
     let trialDaysRemaining = 0;
     let effectiveStatus = subscription.status;
 
     if (subscription.status === "trialing" && !subscription.stripe_subscription_id) {
-      // Local trial - check if expired
+      if (!subscription.current_period_end) {
+        logStep("Trial without end date - denying access");
+        return new Response(JSON.stringify(DENIED_RESPONSE), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
       const trialEnd = new Date(subscription.current_period_end);
       const now = new Date();
       
       if (now > trialEnd) {
-        // Trial has expired - but we don't update here, webhook or scheduled job should handle this
         effectiveStatus = "cancelled";
         trialDaysRemaining = 0;
         logStep("Local trial has expired");
@@ -113,9 +176,10 @@ serve(async (req) => {
       }
     }
 
+    // FAIL-CLOSED: Só liberar acesso para status explicitamente válidos
     const isSubscribed = effectiveStatus === "active" || effectiveStatus === "trialing";
     
-    // Determine plan name based on status (no sensitive IDs exposed)
+    // Determinar nome do plano (sem expor IDs sensíveis)
     let planName = "Nenhum";
     if (effectiveStatus === "active") {
       planName = "Plano Profissional";
@@ -125,22 +189,27 @@ serve(async (req) => {
       planName = "Pagamento Pendente";
     }
 
-    return new Response(JSON.stringify({
+    const response = {
       subscribed: isSubscribed,
       status: effectiveStatus,
       plan_name: planName,
       subscription_end: subscription.current_period_end,
       trial_days_remaining: trialDaysRemaining
-    }), {
+    };
+
+    logStep("Returning subscription status", { subscribed: isSubscribed, status: effectiveStatus });
+
+    return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
+    // FAIL-CLOSED: Qualquer exceção resulta em acesso negado
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR in check-subscription", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    logStep("CRITICAL ERROR - Access denied", { message: errorMessage });
+    return new Response(JSON.stringify(DENIED_RESPONSE), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
+      status: 200, // Retornar 200 para o frontend processar
     });
   }
 });
