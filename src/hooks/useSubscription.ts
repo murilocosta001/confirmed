@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface SubscriptionData {
   subscribed: boolean;
-  status: "active" | "trialing" | "past_due" | "cancelled";
+  status: "active" | "trialing" | "past_due" | "cancelled" | "error";
   plan_name: string;
   subscription_end: string | null;
   trial_days_remaining: number;
@@ -21,13 +21,26 @@ export const useSubscription = () => {
       
       if (error) {
         console.error("Error checking subscription:", error);
-        // Default to trialing on error (be permissive during trial)
+        // FAIL-CLOSED: Negar acesso por padrão em caso de erro
         return {
-          subscribed: true,
-          status: "trialing",
-          plan_name: "Trial",
+          subscribed: false,
+          status: "error",
+          plan_name: "Erro na verificação",
           subscription_end: null,
-          trial_days_remaining: 7
+          trial_days_remaining: 0
+        };
+      }
+      
+      // Validar que a resposta contém os campos esperados
+      if (!data || typeof data.subscribed !== 'boolean' || !data.status) {
+        console.error("Invalid subscription response:", data);
+        // FAIL-CLOSED: Resposta inválida = acesso negado
+        return {
+          subscribed: false,
+          status: "error",
+          plan_name: "Erro na verificação",
+          subscription_end: null,
+          trial_days_remaining: 0
         };
       }
       
@@ -36,24 +49,35 @@ export const useSubscription = () => {
     enabled: !!user,
     refetchInterval: 60000, // Refresh every minute
     staleTime: 30000,
+    retry: 2, // Tentar 2 vezes antes de falhar
+    retryDelay: 1000,
   });
 
   const refreshSubscription = () => {
     queryClient.invalidateQueries({ queryKey: ["subscription"] });
   };
 
-  const isActive = query.data?.status === "active" || query.data?.status === "trialing";
-  const isPastDue = query.data?.status === "past_due";
-  const isCancelled = query.data?.status === "cancelled";
-  const isTrialing = query.data?.status === "trialing";
+  // FAIL-CLOSED: Só considerar ativo quando explicitamente confirmado
+  // isLoading ou isError = acesso negado
+  const hasValidSubscription = query.isSuccess && 
+    query.data?.subscribed === true && 
+    (query.data?.status === "active" || query.data?.status === "trialing");
+  
+  const isActive = query.isSuccess && query.data?.status === "active";
+  const isPastDue = query.isSuccess && query.data?.status === "past_due";
+  const isCancelled = query.isSuccess && query.data?.status === "cancelled";
+  const isTrialing = query.isSuccess && query.data?.status === "trialing";
+  const isError = query.isError || query.data?.status === "error";
   const trialDaysRemaining = query.data?.trial_days_remaining ?? 0;
 
   return {
     ...query,
+    hasValidSubscription,
     isActive,
     isPastDue,
     isCancelled,
     isTrialing,
+    isError,
     trialDaysRemaining,
     refreshSubscription,
   };

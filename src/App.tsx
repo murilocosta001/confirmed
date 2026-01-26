@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import SubscriptionGuard from "@/components/auth/SubscriptionGuard";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -35,31 +36,43 @@ const App = () => (
                 <Onboarding />
               </ProtectedRoute>
             } />
+            {/* Rotas premium - requerem autenticação E assinatura válida */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
-                <Dashboard />
+                <SubscriptionGuard>
+                  <Dashboard />
+                </SubscriptionGuard>
               </ProtectedRoute>
             } />
             <Route path="/consultas" element={
               <ProtectedRoute>
-                <Appointments />
+                <SubscriptionGuard>
+                  <Appointments />
+                </SubscriptionGuard>
               </ProtectedRoute>
             } />
             <Route path="/pacientes" element={
               <ProtectedRoute>
-                <Patients />
+                <SubscriptionGuard>
+                  <Patients />
+                </SubscriptionGuard>
               </ProtectedRoute>
             } />
             <Route path="/mensagens" element={
               <ProtectedRoute>
-                <Messages />
+                <SubscriptionGuard>
+                  <Messages />
+                </SubscriptionGuard>
               </ProtectedRoute>
             } />
             <Route path="/relatorios" element={
               <ProtectedRoute>
-                <Reports />
+                <SubscriptionGuard>
+                  <Reports />
+                </SubscriptionGuard>
               </ProtectedRoute>
             } />
+            {/* Configurações - permite acesso mesmo sem assinatura para gerenciar plano */}
             <Route path="/configuracoes" element={
               <ProtectedRoute>
                 <Settings />
