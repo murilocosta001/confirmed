@@ -257,6 +257,7 @@ export type Database = {
     }
     Functions: {
       get_user_clinic_id: { Args: never; Returns: string }
+      user_owns_clinic: { Args: { _clinic_id: string }; Returns: boolean }
     }
     Enums: {
       appointment_status:
