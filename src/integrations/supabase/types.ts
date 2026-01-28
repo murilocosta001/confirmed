@@ -256,7 +256,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_clinic_id: { Args: never; Returns: string }
     }
     Enums: {
       appointment_status:
