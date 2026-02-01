@@ -9,7 +9,7 @@ import SubscriptionGuard from "@/components/auth/SubscriptionGuard";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Onboarding from "./pages/Onboarding";
+
 import Dashboard from "./pages/Dashboard";
 import Appointments from "./pages/Appointments";
 import Messages from "./pages/Messages";
@@ -31,11 +31,6 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Register />} />
-            <Route path="/onboarding" element={
-              <ProtectedRoute>
-                <Onboarding />
-              </ProtectedRoute>
-            } />
             {/* Rotas premium - requerem autenticação E assinatura válida */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
