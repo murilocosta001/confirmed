@@ -80,6 +80,41 @@ export type Database = {
           },
         ]
       }
+      clinic_users: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["clinic_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["clinic_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["clinic_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_users_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinics: {
         Row: {
           clinic_type: string | null
@@ -257,6 +292,14 @@ export type Database = {
     }
     Functions: {
       get_user_clinic_id: { Args: never; Returns: string }
+      user_has_clinic_role: {
+        Args: {
+          _clinic_id: string
+          _role: Database["public"]["Enums"]["clinic_role"]
+        }
+        Returns: boolean
+      }
+      user_is_clinic_admin: { Args: { _clinic_id: string }; Returns: boolean }
       user_owns_clinic: { Args: { _clinic_id: string }; Returns: boolean }
     }
     Enums: {
@@ -265,6 +308,7 @@ export type Database = {
         | "confirmed"
         | "cancelled_auto"
         | "reschedule_requested"
+      clinic_role: "owner" | "admin" | "receptionist" | "doctor"
       subscription_status: "active" | "past_due" | "cancelled" | "trialing"
     }
     CompositeTypes: {
@@ -399,6 +443,7 @@ export const Constants = {
         "cancelled_auto",
         "reschedule_requested",
       ],
+      clinic_role: ["owner", "admin", "receptionist", "doctor"],
       subscription_status: ["active", "past_due", "cancelled", "trialing"],
     },
   },
