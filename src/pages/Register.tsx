@@ -62,10 +62,10 @@ const Register = () => {
 
       // 2. Create the clinic
       const { error: clinicError } = await supabase.from("clinics").insert({
-        user_id: authData.user.id,
+        owner_id: authData.user.id,
         name: clinicName,
         whatsapp: whatsapp.replace(/\D/g, ""),
-      });
+      } as any);
 
       if (clinicError) {
         toast({
