@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[CUSTOMER-PORTAL] ${step}${detailsStr}`);
 };
 
@@ -26,7 +26,7 @@ serve(async (req) => {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
+      { auth: { persistSession: false } },
     );
 
     const authHeader = req.headers.get("Authorization");
@@ -41,8 +41,10 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    if (customers.data.length === 0) {
-      throw new Error("No Stripe customer found for this user");
+    let customerId = null;
+
+    if (customers.data.length > 0) {
+      customerId = customers.data[0].id;
     }
     const customerId = customers.data[0].id;
     logStep("Found Stripe customer", { customerId });
