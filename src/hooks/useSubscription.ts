@@ -18,7 +18,7 @@ export const useSubscription = () => {
     queryKey: ["subscription", user?.id],
     queryFn: async (): Promise<SubscriptionData> => {
       const { data, error } = await supabase.functions.invoke("check-subscription");
-      
+
       if (error) {
         console.error("Error checking subscription:", error);
         // FAIL-CLOSED: Negar acesso por padrão em caso de erro
@@ -27,12 +27,12 @@ export const useSubscription = () => {
           status: "error",
           plan_name: "Erro na verificação",
           subscription_end: null,
-          trial_days_remaining: 0
+          trial_days_remaining: 0,
         };
       }
-      
+
       // Validar que a resposta contém os campos esperados
-      if (!data || typeof data.subscribed !== 'boolean' || !data.status) {
+      if (!data || typeof data.subscribed !== "boolean" || !data.status) {
         console.error("Invalid subscription response:", data);
         // FAIL-CLOSED: Resposta inválida = acesso negado
         return {
@@ -40,10 +40,10 @@ export const useSubscription = () => {
           status: "error",
           plan_name: "Erro na verificação",
           subscription_end: null,
-          trial_days_remaining: 0
+          trial_days_remaining: 0,
         };
       }
-      
+
       return data;
     },
     enabled: !!user,
@@ -59,15 +59,17 @@ export const useSubscription = () => {
 
   // FAIL-CLOSED: Só considerar ativo quando explicitamente confirmado
   // isLoading ou isError = acesso negado
-  const hasValidSubscription = query.isSuccess && 
-    query.data?.subscribed === true && 
-    (query.data?.status === "active" || query.data?.status === "trialing");
-  
+  const hasValidSubscription =
+    query.isLoading ||
+    (query.isSuccess &&
+      query.data?.subscribed === true &&
+      (query.data?.status === "active" || query.data?.status === "trial" || query.data?.status === "trialing"));
+
   const isActive = query.isSuccess && query.data?.status === "active";
   const isPastDue = query.isSuccess && query.data?.status === "past_due";
   const isCancelled = query.isSuccess && query.data?.status === "cancelled";
   const isTrialing = query.isSuccess && query.data?.status === "trialing";
-  const isError = query.isError || query.data?.status === "error";
+  const isError = query.isError && !query.isLoading;
   const trialDaysRemaining = query.data?.trial_days_remaining ?? 0;
 
   return {
