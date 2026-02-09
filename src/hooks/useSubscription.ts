@@ -63,8 +63,7 @@ export const useSubscription = () => {
     query.isLoading ||
     (query.isSuccess &&
       query.data?.subscribed === true &&
-      (query.data?.status === "active" || query.data?.status === "trial" || query.data?.status === "trialing"));
-
+      (query.data?.status === "active" || query.data?.status === "trialing"));
   const isActive = query.isSuccess && query.data?.status === "active";
   const isPastDue = query.isSuccess && query.data?.status === "past_due";
   const isCancelled = query.isSuccess && query.data?.status === "cancelled";
